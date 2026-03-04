@@ -10,6 +10,8 @@ PegexBuilder provides a composable, type-safe API for building parsers with:
 - **PEG extensions**: `Cut`, `Recursive`, `PrecedenceGroup`, `ImplicitWhitespace`
 - **Language parsing**: `Keyword`, `Identifier`, `IntegerLiteral`, `StringLiteral`, `Clause`, `Parenthesized`, `CommaSeparated`, and more
 
+For a complete element reference with usage scenarios and examples, see [docs/SYNTAX.md](docs/SYNTAX.md).
+
 ## Installation
 
 Add to your `Package.swift`:
