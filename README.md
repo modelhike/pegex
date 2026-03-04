@@ -38,8 +38,8 @@ Then add PegexBuilder as a local dependency or copy the sources into your projec
 import PegexBuilder
 import Parsing
 
-// Basic SELECT parser (PEGEx is the root; ImplicitWhitespace for tokenized parsing)
-let parser = PEGEx {
+// Basic SELECT parser (Pegex is the root; ImplicitWhitespace for tokenized parsing)
+let parser = Pegex {
     ImplicitWhitespace {
         Keyword("SELECT")
         Capture { CommaSeparated { Identifier() } }
@@ -59,7 +59,7 @@ let (cols, table) = try parser.parse(&input)
 
 | Type | Description |
 |------|-------------|
-| `PEGEx<Input> { ... }` | Main parser builder; wraps swift-parsing `Parse` |
+| `Pegex<Input> { ... }` | Main parser builder; wraps swift-parsing `Parse` |
 | `ImplicitWhitespace { ... }` | Inserts optional whitespace between parsers |
 
 ### Matchers
@@ -131,14 +131,14 @@ let (cols, table) = try parser.parse(&input)
 |------|-------------|
 | `Expected("label") { ... }` | Wrap errors with descriptive label |
 | `Recover(to: recoveryParser) { ... } onError:` | Skip to sync point on failure |
-| `PEGExDiagnostic` | Pretty-print errors with line/column |
+| `PegexDiagnostic` | Pretty-print errors with line/column |
 
 ## Examples
 
 ### SQL SELECT with WHERE
 
 ```swift
-let parser = PEGEx {
+let parser = Pegex {
     ImplicitWhitespace {
     Keyword("SELECT")
     Capture { Identifier() }
@@ -160,7 +160,7 @@ let parser = PEGEx {
 
 ```swift
 let selectParser = Recursive<Substring, Void> { selectRef in
-    PEGEx {
+    Pegex {
         ImplicitWhitespace {
         Keyword("SELECT")
         Capture { CommaSeparated { Identifier() } }
