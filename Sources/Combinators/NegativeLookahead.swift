@@ -23,7 +23,7 @@ where Upstream.Input == Input {
         do {
             _ = try upstream.parse(&copy)
             // Inner parser succeeded - we must fail
-            throw PEGExError.negativeLookaheadFailed(at: input)
+            throw PEGExError.negativeLookaheadFailed(at: PEGExPosition(input))
         } catch {
             // Inner parser failed - that means we succeed (consume nothing)
             return

@@ -21,7 +21,7 @@ where Upstream.Input == Input {
         do {
             return try upstream.parse(&input)
         } catch {
-            throw PEGExError.expected(label, at: input, underlying: error)
+            throw PEGExError.expected(label, at: PEGExPosition(input), underlying: error)
         }
     }
 }

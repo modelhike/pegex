@@ -82,17 +82,23 @@ let parser = Pegex {
 
 ### `ImplicitWhitespace`
 
-Wraps a parser block so that **optional whitespace and SQL-style comments** are automatically consumed between each adjacent parser. Essential for tokenized languages (SQL, config files, etc.).
+Wraps a parser block so that **optional whitespace and comments** are automatically consumed between each adjacent parser. Essential for tokenized languages (SQL, config files, etc.).
 
 **Signatures:**
 ```swift
 ImplicitWhitespace { @ImplicitWhitespaceBuilder content }
 ImplicitWhitespace(input: Input.Type) { @ImplicitWhitespaceBuilder content }
+ImplicitWhitespace(configuration: WhitespaceConfiguration) { @ImplicitWhitespaceBuilder content }
+ImplicitWhitespace(input: Input.Type, configuration: WhitespaceConfiguration) { @ImplicitWhitespaceBuilder content }
+ImplicitWhitespace(commentSyntax: CommentSyntax) { @ImplicitWhitespaceBuilder content }
+ImplicitWhitespace(input: Input.Type, commentSyntax: CommentSyntax) { @ImplicitWhitespaceBuilder content }
 ```
 
 **Behavior:**
-- Between `A` and `B`, `Whitespace` is parsed (spaces, tabs, `--` line comments, `/* */` block comments)
+- Between `A` and `B`, `Whitespace` is parsed using the configured `CommentSyntax`
 - No explicit `OptionalWhitespace()` calls needed between tokens
+- The default comment syntax is SQL-style: `--` line comments and nested `/* ... */` block comments
+- The same `WhitespaceConfiguration` is threaded through the builder-generated whitespace gaps
 
 **Examples:**
 ```swift
@@ -122,6 +128,22 @@ let parser = Pegex {
         }
     }
 }
+
+// Custom comment syntax
+let parser = Pegex {
+    ImplicitWhitespace(commentSyntax: .init(singleLinePrefixes: ["//"])) {
+        Keyword("SELECT")
+        Keyword("FROM")
+    }
+}
+var input = "SELECT // comment\n FROM table"[...]
+_ = try parser.parse(&input)
+
+// Only consume horizontal whitespace between tokens
+let lineSensitive = ImplicitWhitespace(configuration: .horizontal(commentSyntax: .init())) {
+    Keyword("SELECT")
+    Keyword("FROM")
+}
 ```
 
 ---
@@ -129,6 +151,17 @@ let parser = Pegex {
 ### `ImplicitWhitespaceBuilder` (Result Builder)
 
 Used implicitly inside `ImplicitWhitespace { ... }`. Composes parsers with automatic whitespace insertion between them. Produces `ImplicitWhitespaceSequence<A, B>` for adjacent parsers. You typically don't reference these types directly.
+
+---
+
+### `ImplicitWhitespaceSequence`
+
+Concrete parser type produced by `ImplicitWhitespaceBuilder` when adjacent parsers are combined. It is public mainly as part of the builder machinery; most users do not construct it directly.
+
+**Signature:**
+```swift
+ImplicitWhitespaceSequence(_ a: A, _ b: B, commentSyntax: CommentSyntax = .sql)
+```
 
 ---
 
@@ -182,12 +215,21 @@ Pegex {
 
 ### `Whitespace`
 
-Parses **zero or more** whitespace **and** SQL-style comments (`--` to EOL, `/* ... */` including nested).
+Parses **zero or more** whitespace and configured comments.
 
 **Signature:**
 ```swift
 Whitespace()
+Whitespace(configuration: WhitespaceConfiguration)
+Whitespace(commentSyntax: CommentSyntax)
 ```
+
+**Behavior:**
+- Consumes spaces, tabs, and newlines
+- Can be configured with a custom whitespace-character matcher
+- Consumes comments according to the supplied `CommentSyntax`
+- Default syntax is SQL-style comments
+- Nested block comments are supported when the corresponding `CommentSyntax.BlockDelimiter` uses `allowsNesting: true`
 
 **Examples:**
 ```swift
@@ -198,21 +240,89 @@ Pegex {
     Whitespace()
     Identifier()
 }
+
+// Custom single-line comments
+Whitespace(commentSyntax: .init(singleLinePrefixes: ["//"]))
 ```
 
 ---
 
 ### `SQLComment`
 
-Parses a single SQL-style comment. Used internally by `Whitespace`.
-
-**Forms:**
-- `--` to end of line
-- `/* ... */` (supports nested `/*`)
+Parses a single comment using a configurable `CommentSyntax`. Used internally by `Whitespace`.
 
 **Signature:**
 ```swift
 SQLComment()
+SQLComment(syntax: CommentSyntax)
+```
+
+**Default forms (`.sql`):**
+- `--` to end of line
+- `/* ... */` with nested `/* */` support
+
+---
+
+### `CommentSyntax`
+
+Describes which comments should be skipped by `Whitespace`, `SQLComment`, `ImplicitWhitespace`, `TokenMode`, and `BatchSplitter`.
+
+**Signatures:**
+```swift
+CommentSyntax(
+    singleLinePrefixes: [String] = [],
+    blockDelimiters: [CommentSyntax.BlockDelimiter] = []
+)
+
+CommentSyntax.BlockDelimiter(
+    opening: String,
+    closing: String,
+    allowsNesting: Bool = false
+)
+```
+
+**Built-ins:**
+- `.sql` — `--` plus nested `/* ... */`
+
+**Examples:**
+```swift
+let cStyle = CommentSyntax(
+    singleLinePrefixes: ["//"],
+    blockDelimiters: [
+        .init(opening: "/*", closing: "*/")
+    ]
+)
+```
+
+---
+
+### `WhitespaceConfiguration`
+
+Shared configuration used by `Whitespace`, `ImplicitWhitespace`, and `TokenMode`.
+
+**Signatures:**
+```swift
+WhitespaceConfiguration(
+    commentSyntax: CommentSyntax = .sql,
+    isWhitespaceCharacter: @escaping @Sendable (Character) -> Bool = { $0.isWhitespace }
+)
+
+WhitespaceConfiguration.standard
+WhitespaceConfiguration.horizontal(commentSyntax: CommentSyntax = .sql)
+WhitespaceConfiguration.commentsOnly(commentSyntax: CommentSyntax = .sql)
+WhitespaceConfiguration.characters(_:commentSyntax:)
+```
+
+**Examples:**
+```swift
+Whitespace(configuration: .horizontal(commentSyntax: .init(singleLinePrefixes: ["//"])))
+
+let parser = ImplicitWhitespace(
+    configuration: .characters([" ", "\t"], commentSyntax: .sql)
+) {
+    Keyword("SELECT")
+    Keyword("FROM")
+}
 ```
 
 ---
@@ -224,6 +334,8 @@ Wraps parsers with optional leading whitespace/comment skipping.
 **Signature:**
 ```swift
 TokenMode(_ mode: TokenModeKind) { @ImplicitWhitespaceBuilder content }
+TokenMode(_ mode: TokenModeKind, configuration: WhitespaceConfiguration) { @ImplicitWhitespaceBuilder content }
+TokenMode(_ mode: TokenModeKind, commentSyntax: CommentSyntax) { @ImplicitWhitespaceBuilder content }
 ```
 
 **Modes:**
@@ -235,7 +347,21 @@ TokenMode(_ mode: TokenModeKind) { @ImplicitWhitespaceBuilder content }
 let parser = TokenMode(.skipWhitespaceAndComments) {
     Identifier()
 }
+
+let parser = TokenMode(.skipWhitespaceAndComments, commentSyntax: .init(singleLinePrefixes: ["//"])) {
+    Identifier()
+}
 ```
+
+---
+
+### `TokenModeKind`
+
+Mode selector used by `TokenMode`.
+
+**Cases:**
+- `.skipWhitespaceAndComments`
+- `.character`
 
 ---
 
@@ -276,22 +402,122 @@ Pegex {
 
 ### `Identifier`
 
-Parses identifiers (variable names, column names): `[a-zA-Z_][a-zA-Z0-9_]*` or SQL-style with `@`, `#`, `$`.
+Parses identifiers using either built-in styles or a fully custom configuration.
 
 **Signatures:**
 ```swift
 Identifier(style: Identifier.Style = .standard)
+Identifier(configuration: Identifier.Configuration)
+IdentifierToken(style: Identifier.Style = .standard)
+IdentifierToken(configuration: Identifier.Configuration)
+QualifiedIdentifier(
+    component: IdentifierToken<Input> = IdentifierToken(),
+    separator: Character = ".",
+    allowsOmittedComponents: Bool = false,
+    maxParts: Int? = nil
+)
 ```
 
 **Styles:**
 - `.standard` — `[a-zA-Z_][a-zA-Z0-9_]*`
-- `.sql` — also allows `@`, `#`, `$` (e.g. `@count`, `#temp`, `$var`)
+- `.sql` — supports ordinary identifiers plus prefix-aware forms such as `@count`, `@@rowcount`, `#temp`, `##temp`, and `$` in continuing positions
+- `.custom(Configuration)` — fully configurable regular and delimited forms
+
+**Related types:**
+- `Identifier.Configuration` — combines an optional `RegularForm`, zero or more `PrefixedForm`s, and zero or more `DelimitedForm`s
+- `Identifier.Configuration.PrefixedForm` — models prefix-sensitive regular identifiers such as `@@name`
+- `Identifier.RegularForm` — controls allowed starting/continuing characters and optional max length
+- `Identifier.DelimitedForm` — controls paired delimiters like `[]` or `""`
+- `ParsedIdentifier` — preserves `raw`, `value`, and delimiter metadata
+- `QualifiedIdentifierValue` — stores multipart identifiers as `[ParsedIdentifier?]`
 
 **Examples:**
 ```swift
 Identifier()                    // "foo", "bar_baz", "x123"
 Identifier(style: .sql)         // "@count", "#temp", "$var", "col_name"
+
+let parser = Identifier(configuration: .init(
+    regularForm: .init(
+        additionalContinuingCharacters: Set(["$", "@", "#"])
+    ),
+    prefixedForms: [
+        .init(
+            prefix: "@@",
+            body: .init(
+                additionalStartCharacters: Set(["#"]),
+                additionalContinuingCharacters: Set(["@", "#", "$"])
+            )
+        ),
+        .init(
+            prefix: "@",
+            body: .init(
+                additionalStartCharacters: Set(["#"]),
+                additionalContinuingCharacters: Set(["@", "#", "$"])
+            )
+        ),
+        .init(
+            prefix: "#",
+            body: .init(additionalContinuingCharacters: Set(["@", "#", "$"]))
+        )
+    ],
+    delimitedForms: [
+        .init(opening: "[", closing: "]"),
+        .init(opening: "\"", escapeStrategy: .doubledClosingDelimiter)
+    ]
+))
+// Parses regular, bracketed, or quoted identifiers
+
+let token = try IdentifierToken(configuration: .init(
+    regularForm: nil,
+    delimitedForms: [.init(opening: "\"", escapeStrategy: .doubledClosingDelimiter)]
+)).parse(&input)
+// token.raw, token.value, token.delimiter
+
+let qualified = QualifiedIdentifier(
+    component: IdentifierToken(configuration: .init(
+        regularForm: .init(
+            additionalContinuingCharacters: Set(["@", "#", "$"])
+        ),
+        prefixedForms: [
+            .init(prefix: "@", body: .init(additionalContinuingCharacters: Set(["@", "#", "$"]))),
+            .init(prefix: "#", body: .init(additionalContinuingCharacters: Set(["@", "#", "$"])))
+        ],
+        delimitedForms: [.init(opening: "[", closing: "]")]
+    )),
+    allowsOmittedComponents: true,
+    maxParts: 4
+)
+// Parses multipart forms like database..object
 ```
+
+---
+
+### `ParsedIdentifier`
+
+Structured identifier value returned by `IdentifierToken`.
+
+**Properties:**
+- `raw` — original matched text, including delimiters
+- `value` — normalized identifier content
+- `delimiter` — `.none` or `.paired(open:close:)`
+
+---
+
+### `QualifiedIdentifierValue`
+
+Structured multipart identifier returned by `QualifiedIdentifier`.
+
+**Properties:**
+- `parts: [ParsedIdentifier?]`
+- `values: [String?]` — convenience projection of `parts`
+
+---
+
+### `CharParser`
+
+Concrete single-character parser type produced by the `Char` namespace helpers.
+
+**Typical usage:** you normally use `Char.digit`, `Char.letter`, `Char.any`, `Char.word`, etc., rather than constructing `CharParser` directly.
 
 ---
 
@@ -445,14 +671,26 @@ HexLiteral()   // "0x1a", "0XFF"
 
 ### `StringLiteral`
 
-Parses quoted strings with configurable quote character(s) and escape.
+Parses quoted strings with configurable delimiters and escape behavior.
 
 **Signatures:**
 ```swift
 StringLiteral(quote: Character = "\"", escape: Character? = "\\")
+StringLiteral(quote: Character = "\"", escapeMode: StringLiteral.EscapeMode)
 StringLiteral(quotes: [Character], escape: Character? = "\\")
+StringLiteral(quotes: [Character], escapeMode: StringLiteral.EscapeMode)
 StringLiteral(quotes: Character..., escape: Character? = "\\")
+StringLiteral(delimiters: [StringLiteral.Delimiter])
 ```
+
+**Escape modes:**
+- `.none` — no escaping
+- `.character(Character)` — escape using a prefix character like `\`
+- `.doubledClosingDelimiter` — SQL-style doubling, e.g. `''` or `""`
+
+**Related types:**
+- `StringLiteral.EscapeMode`
+- `StringLiteral.Delimiter`
 
 **Examples:**
 ```swift
@@ -460,6 +698,12 @@ StringLiteral(quote: "'")              // SQL: 'hello'
 StringLiteral(quote: "\"")             // JSON: "hello"
 StringLiteral(quotes: "\"", "'", "`")  // Multiple quote types
 StringLiteral(quote: "'", escape: nil) // No escape (e.g. '' for SQL)
+StringLiteral(quote: "'", escapeMode: .doubledClosingDelimiter) // 'O''Brien'
+
+StringLiteral(delimiters: [
+    .init(opening: "'", escapeMode: .doubledClosingDelimiter),
+    .init(opening: "\"", escapeMode: .character("\\"))
+])
 ```
 
 ---
@@ -575,7 +819,7 @@ Ordered choice (PEG alternative). Tries each branch in order; first success wins
 
 **Signature:**
 ```swift
-ChoiceOf { @OneOfBuilder content }
+ChoiceOf { content }
 ```
 
 **Examples:**
@@ -596,11 +840,64 @@ ChoiceOf {
 
 ---
 
+### `HeterogeneousChoiceOf`
+
+Ordered choice for alternatives that have been erased to a shared output type. Use this when alternatives produce different concrete types but can be unified behind a protocol, enum, or erased type.
+
+**Signatures:**
+```swift
+HeterogeneousChoiceOf(_ alternatives: [AnyParser<Input, Output>])
+HeterogeneousChoiceOf { @HeterogeneousChoiceBuilder content }
+parser.eraseOutput(transform)
+```
+
+**Behavior:**
+- Tries alternatives in order, just like `ChoiceOf`
+- All alternatives must already share the same output type after erasure
+- `CutError` is rethrown immediately, matching `ChoiceOf`
+
+**Examples:**
+```swift
+protocol StatementNode { var kind: String { get } }
+
+let select = Pegex {
+    ImplicitWhitespace {
+        Keyword("SELECT")
+        Capture { Identifier() }
+    }
+}.eraseOutput { output in
+    let (_, column) = output
+    return SelectNode(column: column) as any StatementNode
+}
+
+let insert = Pegex {
+    ImplicitWhitespace {
+        Keyword("INSERT")
+        Capture { Identifier() }
+    }
+}.eraseOutput { output in
+    let (_, table) = output
+    return InsertNode(table: table) as any StatementNode
+}
+
+let parser = HeterogeneousChoiceOf<Substring, any StatementNode>([select, insert])
+```
+
+---
+
+### `HeterogeneousChoiceBuilder`
+
+Result builder used by `HeterogeneousChoiceOf { ... }`. It collects already-erased alternatives into `[AnyParser<Input, Output>]`.
+
+Use it indirectly through `HeterogeneousChoiceOf { ... }`.
+
+---
+
 ### `Cut`
 
 Zero-width commit marker. Succeeds without consuming input.
 
-**Current status:** Cut is a **placeholder**. The intended PEG semantics: when used inside `ChoiceOf`, if parsing fails *after* Cut, backtracking should be disabled and the error should propagate instead of trying the next alternative. `ChoiceOf` is wired to catch and rethrow `CutError`, but **Cut does not currently throw `CutError`** — nothing in the codebase emits it. So Cut currently has no effect on backtracking; it simply succeeds. Use it for future compatibility or documentation of intent.
+**Behavior:** when used inside `ChoiceOf` or `HeterogeneousChoiceOf`, any later failure in the same alternative is wrapped in `CutError` and propagated immediately instead of backtracking to the next alternative.
 
 **Signature:**
 ```swift
@@ -609,13 +906,15 @@ Cut()
 
 **Examples:**
 ```swift
-// Documents intent; no behavioral effect yet
 ChoiceOf {
-    Keyword("SELECT")
-    Cut()
-    Capture { CommaSeparated { Identifier() } }
-    Keyword("INSERT")
-    ...
+    Pegex({ _ in "select" }) {
+        "SE"
+        Cut<Substring>()
+        "LECT"
+    }
+    Pegex({ _ in "set" }) {
+        "SET"
+    }
 }
 ```
 
@@ -886,11 +1185,113 @@ Clause("ORDER", "BY") {
 
 ---
 
+### `BatchSplitter`
+
+Splits a source script into batches using a line-oriented directive such as `GO`.
+
+**Signatures:**
+```swift
+BatchSplitter(configuration: BatchSplitter.Configuration = .init())
+split(_ source: String) throws -> [ScriptBatch]
+
+BatchSplitter.Configuration(
+    directive: String = "GO",
+    isCaseSensitive: Bool = false,
+    allowsRepeatCount: Bool = true,
+    commentSyntax: CommentSyntax = .sql,
+    ignoredDelimitedRegions: [BatchSplitter.DelimitedRegion] = ...
+)
+```
+
+**Behavior:**
+- Matches the directive only when it is the significant content of a line
+- Ignores directives inside configured delimited regions (such as strings)
+- Ignores comments using the configured `CommentSyntax`
+- Supports optional repeat counts such as `GO 100`
+
+**Related types:**
+- `ScriptBatch` — contains `text` and optional `repeatCount`
+- `BatchSplitter.Configuration` — scanner configuration
+- `BatchSplitter.DelimitedRegion` — defines string-like regions to ignore when scanning for directives
+
+**Examples:**
+```swift
+let splitter = BatchSplitter()
+let batches = try splitter.split("""
+CREATE TABLE t (c INT)
+GO
+INSERT INTO t VALUES (1)
+GO 5
+""")
+// [
+//   ScriptBatch(text: "CREATE TABLE t (c INT)\n", repeatCount: nil),
+//   ScriptBatch(text: "INSERT INTO t VALUES (1)\n", repeatCount: 5)
+// ]
+```
+
+---
+
+### `ScriptBatch`
+
+Represents one batch returned by `BatchSplitter`.
+
+**Properties:**
+- `text` — batch contents without the separator line
+- `repeatCount` — optional repeat count parsed from the separator line
+
+---
+
+### `BatchedParse`
+
+Runs a `Substring` parser independently over each batch produced by `BatchSplitter`, collecting successes and failures instead of stopping at the first bad batch.
+
+**Signatures:**
+```swift
+BatchedParse(configuration: BatchedParse.Configuration = .init(), child: Child)
+BatchedParse(configuration: BatchedParse.Configuration = .init()) { @ParserBuilder child }
+
+BatchedParse.Configuration(
+    splitter: BatchSplitter.Configuration = .init(),
+    requiresFullConsumption: Bool = true,
+    trailingWhitespace: WhitespaceConfiguration? = .standard
+)
+```
+
+**Related types:**
+- `BatchedParseResult` — aggregate outputs and failures
+- `ParsedBatch` — one batch outcome
+- `BatchedParseFailure` — failure metadata for one batch
+
+**Examples:**
+```swift
+let parser = BatchedParse(
+    configuration: .init(splitter: .init(directive: "GO"))
+) {
+    Int.parser().pullback(\.utf8)
+}
+
+let result = try parser.parse("""
+1
+GO
+abc
+GO
+2
+GO
+""")
+
+result.outputs   // [1, 2]
+result.failures  // one failure for the middle batch
+```
+
+---
+
 ## 8. Recursion & Precedence
 
 ### `Recursive`
 
 Self-referencing parser for recursive grammars. The closure receives a reference to the parser being defined.
+
+**Important:** native left recursion is **not** supported. Grammars like `expr <- expr "+" term | term` must be rewritten using `PrecedenceGroup`, right-recursive/manual factoring, or explicit `Recursive` + `Memoized` patterns.
 
 **Signature:**
 ```swift
@@ -934,6 +1335,18 @@ let selectRef = Recursive<Substring, Void> { ref in
 }
 ```
 
+**Left recursion workaround:**
+```swift
+let number = Prefix { $0.isNumber }.map { Int(String($0))! }
+let expr = PrecedenceGroup(atom: number) {
+    AtomLevel { number }
+    InfixLeftLevel(precedence: 1, Skip { " + " }) { $0 + $1 }
+    InfixLeftLevel(precedence: 2, Skip { " * " }) { $0 * $1 }
+}
+// Use PrecedenceGroup instead of a left-recursive rule like:
+// expr <- expr "+" term | term
+```
+
 ---
 
 ### `PrecedenceGroup`
@@ -958,6 +1371,18 @@ let parser = PrecedenceGroup(atom: number) {
 }
 // "1 + 2 * 3" → 7
 ```
+
+---
+
+### `AnyPrecedenceLevel`
+
+Type-erased precedence level used internally by `PrecedenceGroup`.
+
+It stores:
+- a numeric precedence
+- a type-erased level kind such as atom, infix-left, infix-right, prefix, or postfix
+
+You usually work with `AtomLevel`, `InfixLeftLevel`, `InfixRightLevel`, `PrefixLevel`, and `PostfixLevel` instead.
 
 ---
 
@@ -1060,6 +1485,17 @@ MemoTable()
 
 ---
 
+### `PrecedenceBuilder` and `PrecedenceLevelType`
+
+Builder machinery used by `PrecedenceGroup { ... }`.
+
+- `PrecedenceBuilder` collects precedence levels into `[AnyPrecedenceLevel<Input, Output>]`
+- `PrecedenceLevelType` is the protocol conformed to by `AtomLevel`, `InfixLeftLevel`, `InfixRightLevel`, `PrefixLevel`, and `PostfixLevel`
+
+Most users work with the concrete level types directly and never reference these helper types explicitly.
+
+---
+
 ## 9. Error Handling
 
 ### `Expected`
@@ -1108,16 +1544,51 @@ var input = "bad stuff ; rest"[...]
 
 ---
 
+### `RecoveringMany`
+
+Parent parser that repeatedly parses child elements, collects failures, resynchronizes using a caller-supplied recovery parser, and continues.
+
+**Signatures:**
+```swift
+RecoveringMany(
+    element: { @ParserBuilder child },
+    recovery: { @ParserBuilder syncPoint }
+)
+```
+
+**Related types:**
+- `RecoveringManyResult` — contains `elements` and `errors`
+
+**Examples:**
+```swift
+let element = Pegex {
+    Capture { Prefix(1...) { $0.isLowercase } }
+    ";"
+}
+
+let parser = RecoveringMany(
+    element: { element },
+    recovery: { ";" }
+)
+
+var input = "alpha;BAD;beta;"[...]
+let result = try parser.parse(&input)
+// result.elements == ["alpha", "beta"]
+// result.errors.count == 1
+```
+
+---
+
 ### `PEGExDiagnostic`
 
-Pretty-prints parse errors with source location (line, column, snippet).
+Pretty-prints parse errors with source location (line, column, offset, snippet).
 
 **Signature:**
 ```swift
 PEGExDiagnostic(from: Error, source: String? = nil)
 ```
 
-**Properties:** `message`, `line`, `column`, `snippet`, `underlying`  
+**Properties:** `message`, `expected`, `line`, `column`, `offset`, `snippet`, `underlying`  
 **Computed:** `formatted` — human-readable string
 
 **Examples:**
@@ -1127,6 +1598,29 @@ do {
 } catch {
     let diag = PEGExDiagnostic(from: error, source: String(input))
     print(diag.formatted)
+}
+```
+
+---
+
+### `parseWithLocation(_:)`
+
+Convenience API for `Substring` parsers that parses a full `String` and throws `PEGExLocatedError` when possible.
+
+**Signature:**
+```swift
+parser.parseWithLocation(_ source: String) throws -> Output
+```
+
+**Examples:**
+```swift
+do {
+    let result = try parser.parseWithLocation("SELE")
+    print(result)
+} catch let error as PEGExLocatedError {
+    print(error.location.line)
+    print(error.location.column)
+    print(error.location.offset)
 }
 ```
 
@@ -1144,9 +1638,20 @@ PEGExParseError(_ message: String)
 
 ---
 
+### `pegexFailure`
+
+Convenience helper that creates `PEGExError.failure(_, at:)` for parsers that want to preserve the current failure position.
+
+```swift
+pegexFailure(_ message: String, at: input)
+```
+
+---
+
 ### `PEGExError`
 
 Rich error enum:
+- `.failure(String, at:)` — generic parser failure at a position
 - `.expected(String, at:, underlying:)` — expected construct
 - `.negativeLookaheadFailed(at:)` — negative lookahead succeeded (should fail)
 - `.cutCommitted(underlying:)` — cut reached, no backtrack
@@ -1154,9 +1659,41 @@ Rich error enum:
 
 ---
 
+### `PEGExPosition`
+
+Opaque wrapper for stored parser positions used by diagnostics and recovery errors.
+
+```swift
+PEGExPosition(_ rawValue: Any)
+```
+
+---
+
+### `PEGExSourceLocation`
+
+Structured source location for diagnostics.
+
+```swift
+PEGExSourceLocation(line: Int, column: Int, offset: Int)
+```
+
+---
+
+### `PEGExLocatedError`
+
+Parse error carrying a `PEGExSourceLocation` plus a message and optional expected label.
+
+```swift
+PEGExLocatedError(
+    message: String,
+    expected: String? = nil,
+    location: PEGExSourceLocation
+)
+```
+
 ### `CutError`
 
-Error type for Cut/ChoiceOf integration. `ChoiceOf` catches and rethrows `CutError` to disable backtracking. **Currently no parser throws `CutError`**; Cut is a placeholder that always succeeds.
+Error type for Cut/ChoiceOf integration. Thrown when an alternative has committed with `Cut` and later fails, which prevents `ChoiceOf` and `HeterogeneousChoiceOf` from trying later alternatives.
 
 ---
 
@@ -1166,7 +1703,6 @@ Protocol for named, reusable parsers with a `body` property. Mirrors swift-parsi
 
 ```swift
 protocol PEGExRule: Parser {
-    associatedtype Body: Parser
     @ParserBuilder var body: Body { get }
 }
 ```
@@ -1190,6 +1726,7 @@ PegexBuilder is built on [swift-parsing](https://github.com/pointfreeco/swift-pa
 | `AnyParser` | Type-erased parser. Use `parser.eraseToAnyParser()` for `Recursive` and `PrecedenceGroup` |
 | `Int.parser()` | Built-in integer parser. Use `.pullback(\.utf8)` for `Substring` |
 | `OneOfBuilder` | Result builder for `ChoiceOf` (alternatives must have same `Output` type) |
+| `AnyParser` + `eraseOutput` | Useful for `HeterogeneousChoiceOf` when alternatives need a shared erased output |
 | `ParserBuilder` | Result builder for sequences (via `PEGExBuilder` alias) |
 | `Parse` | Underlying type for `Pegex`; rarely used directly |
 
@@ -1215,15 +1752,15 @@ Memoized("num", memoTable: memoTable) {
 
 | Category | Elements |
 |----------|----------|
-| **Entry** | `Pegex`, `ImplicitWhitespace` |
-| **Whitespace** | `OptionalWhitespace`, `RequiredWhitespace`, `Whitespace`, `SQLComment`, `TokenMode` |
-| **Matchers** | `Keyword`, `Identifier`, `Char`, `CharIn`, `CharNotIn`, `Anchor`, `IntegerLiteral`, `FloatLiteral`, `HexLiteral`, `StringLiteral` |
+| **Entry** | `Pegex`, `ImplicitWhitespace`, `ImplicitWhitespaceBuilder`, `ImplicitWhitespaceSequence`, `PEGExBuilder` |
+| **Whitespace** | `OptionalWhitespace`, `RequiredWhitespace`, `Whitespace`, `SQLComment`, `CommentSyntax`, `WhitespaceConfiguration`, `TokenMode`, `TokenModeKind` |
+| **Matchers** | `Keyword`, `Identifier`, `IdentifierToken`, `QualifiedIdentifier`, `QualifiedIdentifierValue`, `ParsedIdentifier`, `CharParser`, `Char`, `CharIn`, `CharNotIn`, `Anchor`, `IntegerLiteral`, `FloatLiteral`, `HexLiteral`, `StringLiteral` |
 | **Quantifiers** | `One`, `ZeroOrMore`, `OneOrMore`, `Optionally`, `Repeat` |
-| **Combinators** | `ChoiceOf`, `Cut`, `Lookahead`, `NegativeLookahead`, `Sequence` |
+| **Combinators** | `ChoiceOf`, `HeterogeneousChoiceOf`, `HeterogeneousChoiceBuilder`, `Cut`, `Lookahead`, `NegativeLookahead`, `Sequence` |
 | **Capture** | `Capture`, `TryCapture`, `Reference`, `CaptureAs` |
-| **Convenience** | `CommaSeparated`, `Delimited`, `SemicolonSeparated`, `Parenthesized`, `Braced`, `Bracketed`, `Clause` |
-| **Recursion** | `Recursive`, `PrecedenceGroup`, `Atom`, `AtomLevel`, `InfixLeftLevel`, `InfixRightLevel`, `PrefixLevel`, `PostfixLevel`, `Memoized`, `MemoTable` |
-| **Error** | `Expected`, `Recover`, `PEGExDiagnostic`, `PEGExError`, `PEGExParseError` |
+| **Convenience** | `CommaSeparated`, `Delimited`, `SemicolonSeparated`, `Parenthesized`, `Braced`, `Bracketed`, `Clause`, `BatchSplitter`, `ScriptBatch`, `BatchedParse`, `BatchedParseResult`, `ParsedBatch`, `BatchedParseFailure` |
+| **Recursion** | `Recursive`, `PrecedenceGroup`, `Atom`, `AtomLevel`, `InfixLeftLevel`, `InfixRightLevel`, `PrefixLevel`, `PostfixLevel`, `PrecedenceBuilder`, `PrecedenceLevelType`, `Memoized`, `MemoTable` |
+| **Error** | `Expected`, `Recover`, `RecoveringMany`, `RecoveringManyResult`, `PEGExDiagnostic`, `parseWithLocation(_:)`, `pegexFailure`, `PEGExError`, `PEGExParseError`, `PEGExPosition`, `PEGExSourceLocation`, `PEGExLocatedError`, `CutError` |
 
 ---
 

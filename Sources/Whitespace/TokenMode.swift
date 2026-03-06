@@ -17,17 +17,32 @@ where Input: Collection, Input.SubSequence == Input, Input.Element == Character,
     let mode: TokenModeKind
     @usableFromInline
     let parsers: Parsers
+    @usableFromInline
+    let whitespaceConfiguration: WhitespaceConfiguration
 
-    @inlinable
-    public init(_ mode: TokenModeKind, @ImplicitWhitespaceBuilder<Input> _ build: () -> Parsers) {
+    public init(
+        _ mode: TokenModeKind,
+        configuration: WhitespaceConfiguration = .standard,
+        @ImplicitWhitespaceBuilder<Input> _ build: () -> Parsers
+    ) {
         self.mode = mode
-        self.parsers = build()
+        self.whitespaceConfiguration = configuration
+        self.parsers = ImplicitWhitespaceBuilderContext.withConfiguration(configuration) {
+            build()
+        }
     }
 
-    @inlinable
+    public init(
+        _ mode: TokenModeKind,
+        commentSyntax: CommentSyntax,
+        @ImplicitWhitespaceBuilder<Input> _ build: () -> Parsers
+    ) {
+        self.init(mode, configuration: .init(commentSyntax: commentSyntax), build)
+    }
+
     public func parse(_ input: inout Input) throws -> Parsers.Output {
         if case .skipWhitespaceAndComments = mode {
-            _ = try? Whitespace<Input>().parse(&input)
+            _ = try? Whitespace<Input>(configuration: whitespaceConfiguration).parse(&input)
         }
         return try parsers.parse(&input)
     }

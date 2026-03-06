@@ -35,7 +35,7 @@ where Input: Collection, Input.SubSequence == Input, Upstream.Input == Input, Re
                 do {
                     _ = try recovery.parse(&attempt)
                     input = attempt
-                    throw PEGExError.recovery(message: "recovered after skip", skipped: input)
+                    throw PEGExError.recovery(message: "recovered after skip", skipped: PEGExPosition(input))
                 } catch {
                     copy = copy.dropFirst()
                 }
