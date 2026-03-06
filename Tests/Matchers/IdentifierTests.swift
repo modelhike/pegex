@@ -51,6 +51,18 @@ struct IdentifierTests {
         #expect(result.raw == "\"Table\"\"Name\"")
     }
 
+    @Test func identifierTokenExposesDelimiterMetadata() throws {
+        let parser = IdentifierToken<Substring>(
+            configuration: .init(
+                regularForm: nil,
+                delimitedForms: [.init(opening: "[", closing: "]")]
+            )
+        )
+        var input = "[Order Details]"[...]
+        let result = try parser.parse(&input)
+        #expect(result.delimiter == .paired(open: "[", close: "]"))
+    }
+
     @Test func sqlIdentifierRejectsBarePrefix() {
         let parser = Identifier(style: .sql)
         var input = "@"[...]

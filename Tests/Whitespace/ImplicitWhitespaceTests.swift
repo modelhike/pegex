@@ -51,4 +51,42 @@ struct ImplicitWhitespaceTests {
             _ = try parser.parse(&input)
         }
     }
+
+    @Test func implicitWhitespaceCanSkipCommentsWithoutWhitespace() throws {
+        let parser = ImplicitWhitespace(configuration: .commentsOnly(commentSyntax: .sql)) {
+            Keyword("SELECT")
+            Keyword("FROM")
+        }
+        var input = "SELECT/* gap */FROM tail"[...]
+        _ = try parser.parse(&input)
+        #expect(input == " tail")
+    }
+
+    @Test func tokenModeUsesCustomWhitespaceConfiguration() throws {
+        let parser = TokenMode<Substring, _>(
+            .skipWhitespaceAndComments,
+            configuration: .commentsOnly(commentSyntax: .sql)
+        ) {
+            Keyword("SELECT")
+        }
+        var input = "/* lead */SELECT tail"[...]
+        _ = try parser.parse(&input)
+        #expect(input == " tail")
+    }
+
+    @Test func tokenModeCharacterModeDoesNotSkipLeadingInput() {
+        let parser = TokenMode<Substring, _>(.character) {
+            Keyword("SELECT")
+        }
+        var input = "  SELECT"[...]
+        #expect(throws: Error.self) {
+            _ = try parser.parse(&input)
+        }
+    }
+
+    @Test func whitespaceCanBeRestrictedToSpecificCharacters() throws {
+        var input = "__value"[...]
+        try Whitespace(configuration: .characters(["_"], commentSyntax: .init())).parse(&input)
+        #expect(input == "value")
+    }
 }

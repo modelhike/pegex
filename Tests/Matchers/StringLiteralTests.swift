@@ -34,6 +34,26 @@ struct StringLiteralTests {
         #expect((try? parser.parse(&input3)) == "backtick")
     }
 
+    @Test func stringLiteralSupportsMixedDelimiterStrategies() throws {
+        let parser = StringLiteral(delimiters: [
+            .init(opening: "'", escapeMode: .doubledClosingDelimiter),
+            .init(opening: "`", escapeMode: .none),
+        ])
+        var sql = "'O''Brien'"[...]
+        #expect(try parser.parse(&sql) == "O'Brien")
+
+        var raw = "`raw value`"[...]
+        #expect(try parser.parse(&raw) == "raw value")
+    }
+
+    @Test func stringLiteralNoEscapeModeStopsAtFirstClosingDelimiter() throws {
+        let parser = StringLiteral(quote: "'", escapeMode: .none)
+        var input = "'a''b'"[...]
+        let result = try parser.parse(&input)
+        #expect(result == "a")
+        #expect(input == "'b'")
+    }
+
     @Test func sqlStyleDoubledQuoteEscape() throws {
         let parser = StringLiteral(quote: "'", escapeMode: .doubledClosingDelimiter)
         var input = "'O''Brien'"[...]
