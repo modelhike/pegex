@@ -117,4 +117,39 @@ struct IdentifierTests {
         let result = try parser.parse(&input)
         #expect(result == "$$macro_name")
     }
+
+    @Test func sqlStyleIncludesBracketedIdentifiers() throws {
+        let parser = Identifier(style: .sql)
+        var input = "[Order Details]"[...]
+        let result = try parser.parse(&input)
+        #expect(result == "Order Details")
+    }
+
+    @Test func sqlStyleIncludesQuotedIdentifiers() throws {
+        let parser = Identifier(style: .sql)
+        var input = "\"Column Name\""[...]
+        let result = try parser.parse(&input)
+        #expect(result == "Column Name")
+    }
+
+    @Test func sqlStyleQuotedIdentifierWithDoubledEscape() throws {
+        let parser = Identifier(style: .sql)
+        var input = "\"Table\"\"Name\""[...]
+        let result = try parser.parse(&input)
+        #expect(result == "Table\"Name")
+    }
+
+    @Test func sqlStyleBracketedWithReservedWord() throws {
+        let parser = Identifier(style: .sql)
+        var input = "[SELECT]"[...]
+        let result = try parser.parse(&input)
+        #expect(result == "SELECT")
+    }
+
+    @Test func sqlStyleBracketedWithSpaces() throws {
+        let parser = Identifier(style: .sql)
+        var input = "[Order Details With Spaces]"[...]
+        let result = try parser.parse(&input)
+        #expect(result == "Order Details With Spaces")
+    }
 }
