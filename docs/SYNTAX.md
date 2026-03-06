@@ -2,6 +2,8 @@
 
 A comprehensive guide to every parser element, combinator, and construct in PegexBuilder. Each section covers API signatures, usage scenarios, and practical examples.
 
+For recommended compositions and best-practice workflows, see `PATTERNS.md`.
+
 ---
 
 ## Prerequisites & Input Constraints
@@ -141,6 +143,12 @@ _ = try parser.parse(&input)
 
 // Only consume horizontal whitespace between tokens
 let lineSensitive = ImplicitWhitespace(configuration: .horizontal(commentSyntax: .init())) {
+    Keyword("SELECT")
+    Keyword("FROM")
+}
+
+// Allow comments between tokens without requiring actual whitespace characters
+let commentsOnly = ImplicitWhitespace(configuration: .commentsOnly(commentSyntax: .sql)) {
     Keyword("SELECT")
     Keyword("FROM")
 }
@@ -323,6 +331,12 @@ let parser = ImplicitWhitespace(
     Keyword("SELECT")
     Keyword("FROM")
 }
+
+let commentsOnly = TokenMode(.skipWhitespaceAndComments, configuration: .commentsOnly(commentSyntax: .sql)) {
+    Keyword("SELECT")
+}
+
+let underscores = Whitespace(configuration: .characters(["_"], commentSyntax: .init()))
 ```
 
 ---
@@ -350,6 +364,10 @@ let parser = TokenMode(.skipWhitespaceAndComments) {
 
 let parser = TokenMode(.skipWhitespaceAndComments, commentSyntax: .init(singleLinePrefixes: ["//"])) {
     Identifier()
+}
+
+let raw = TokenMode<Substring, _>(.character) {
+    "SELECT"
 }
 ```
 
@@ -472,6 +490,7 @@ let token = try IdentifierToken(configuration: .init(
     delimitedForms: [.init(opening: "\"", escapeStrategy: .doubledClosingDelimiter)]
 )).parse(&input)
 // token.raw, token.value, token.delimiter
+// token.raw might preserve delimiters while token.value is normalized
 
 let qualified = QualifiedIdentifier(
     component: IdentifierToken(configuration: .init(
@@ -699,10 +718,12 @@ StringLiteral(quote: "\"")             // JSON: "hello"
 StringLiteral(quotes: "\"", "'", "`")  // Multiple quote types
 StringLiteral(quote: "'", escape: nil) // No escape (e.g. '' for SQL)
 StringLiteral(quote: "'", escapeMode: .doubledClosingDelimiter) // 'O''Brien'
+StringLiteral(quote: "'", escapeMode: .none) // Closest delimiter wins immediately
 
 StringLiteral(delimiters: [
     .init(opening: "'", escapeMode: .doubledClosingDelimiter),
-    .init(opening: "\"", escapeMode: .character("\\"))
+    .init(opening: "\"", escapeMode: .character("\\")),
+    .init(opening: "`", escapeMode: .none)
 ])
 ```
 
@@ -849,12 +870,15 @@ Ordered choice for alternatives that have been erased to a shared output type. U
 HeterogeneousChoiceOf(_ alternatives: [AnyParser<Input, Output>])
 HeterogeneousChoiceOf { @HeterogeneousChoiceBuilder content }
 parser.eraseOutput(transform)
+parser.mapTo(transform)
 ```
 
 **Behavior:**
 - Tries alternatives in order, just like `ChoiceOf`
 - All alternatives must already share the same output type after erasure
 - `CutError` is rethrown immediately, matching `ChoiceOf`
+- Prefer `mapTo` for readable enum/node construction; keep `eraseOutput` for low-level or explicit-erasure cases
+- When the parser output is `(Void, Value)` (a common shape after `Skip { ... }`), `mapTo` automatically discards the leading `Void`
 
 **Examples:**
 ```swift
@@ -865,9 +889,8 @@ let select = Pegex {
         Keyword("SELECT")
         Capture { Identifier() }
     }
-}.eraseOutput { output in
-    let (_, column) = output
-    return SelectNode(column: column) as any StatementNode
+}.mapTo { column -> any StatementNode in
+    SelectNode(column: column)
 }
 
 let insert = Pegex {
@@ -875,12 +898,39 @@ let insert = Pegex {
         Keyword("INSERT")
         Capture { Identifier() }
     }
-}.eraseOutput { output in
-    let (_, table) = output
-    return InsertNode(table: table) as any StatementNode
+}.mapTo { table -> any StatementNode in
+    InsertNode(table: table)
 }
 
-let parser = HeterogeneousChoiceOf<Substring, any StatementNode>([select, insert])
+let parser = HeterogeneousChoiceOf<Substring, any StatementNode> {
+    select
+    insert
+}
+```
+
+```swift
+enum Statement {
+    case select(String)
+    case insert(String)
+}
+
+let parser = HeterogeneousChoiceOf<Substring, Statement> {
+    Pegex {
+        ImplicitWhitespace {
+            Keyword("SELECT")
+            Capture { Identifier() }
+        }
+    }
+    .mapTo(Statement.select)
+
+    Pegex {
+        ImplicitWhitespace {
+            Keyword("INSERT")
+            Capture { Identifier() }
+        }
+    }
+    .mapTo(Statement.insert)
+}
 ```
 
 ---
@@ -909,7 +959,7 @@ Cut()
 ChoiceOf {
     Pegex({ _ in "select" }) {
         "SE"
-        Cut<Substring>()
+        Cut()
         "LECT"
     }
     Pegex({ _ in "set" }) {
@@ -1227,6 +1277,11 @@ GO 5
 //   ScriptBatch(text: "CREATE TABLE t (c INT)\n", repeatCount: nil),
 //   ScriptBatch(text: "INSERT INTO t VALUES (1)\n", repeatCount: 5)
 // ]
+
+let custom = BatchSplitter(
+    configuration: .init(directive: "END", isCaseSensitive: true)
+)
+// Lowercase "end" is ignored when case sensitivity is enabled
 ```
 
 ---
@@ -1281,6 +1336,25 @@ GO
 
 result.outputs   // [1, 2]
 result.failures  // one failure for the middle batch
+
+let lenient = BatchedParse(
+    configuration: .init(
+        splitter: .init(directive: "GO"),
+        requiresFullConsumption: false,
+        trailingWhitespace: nil
+    )
+) {
+    Int.parser().pullback(\.utf8)
+}
+// "1 trailing" can still succeed when full consumption is disabled
+
+let customDirective = BatchedParse(
+    configuration: .init(
+        splitter: .init(directive: "END", isCaseSensitive: true)
+    )
+) {
+    Int.parser().pullback(\.utf8)
+}
 ```
 
 ---
@@ -1513,6 +1587,10 @@ Expected("integer") {
     Prefix(1...) { $0.isNumber }
 }
 // "abc" → "expected integer"
+
+let parser = Expected("qualified identifier") {
+    QualifiedIdentifier(allowsOmittedComponents: true, maxParts: 4)
+}
 ```
 
 ---
@@ -1575,6 +1653,12 @@ var input = "alpha;BAD;beta;"[...]
 let result = try parser.parse(&input)
 // result.elements == ["alpha", "beta"]
 // result.errors.count == 1
+
+let structuredRecovery = RecoveringMany(
+    element: { element },
+    recovery: { "RESYNC;" }
+)
+// Recovery markers can be arbitrary parsers, not just a single character
 ```
 
 ---
@@ -1599,6 +1683,7 @@ do {
     let diag = PEGExDiagnostic(from: error, source: String(input))
     print(diag.formatted)
 }
+// Useful for rendering a user-facing error without pattern matching error enums
 ```
 
 ---
@@ -1622,6 +1707,7 @@ do {
     print(error.location.column)
     print(error.location.offset)
 }
+// Prefer this when parsing a whole source string rather than an inout Substring
 ```
 
 ---
@@ -1726,7 +1812,7 @@ PegexBuilder is built on [swift-parsing](https://github.com/pointfreeco/swift-pa
 | `AnyParser` | Type-erased parser. Use `parser.eraseToAnyParser()` for `Recursive` and `PrecedenceGroup` |
 | `Int.parser()` | Built-in integer parser. Use `.pullback(\.utf8)` for `Substring` |
 | `OneOfBuilder` | Result builder for `ChoiceOf` (alternatives must have same `Output` type) |
-| `AnyParser` + `eraseOutput` | Useful for `HeterogeneousChoiceOf` when alternatives need a shared erased output |
+| `AnyParser` + `mapTo` / `eraseOutput` | Useful for `HeterogeneousChoiceOf`; prefer `mapTo` for readable enum/node construction and keep `eraseOutput` for low-level erasure |
 | `ParserBuilder` | Result builder for sequences (via `PEGExBuilder` alias) |
 | `Parse` | Underlying type for `Pegex`; rarely used directly |
 

@@ -73,4 +73,25 @@ struct BatchSplitterTests {
             )
         }
     }
+
+    @Test func supportsCustomDirectiveAndCaseSensitivity() throws {
+        let splitter = BatchSplitter(
+            configuration: .init(
+                directive: "END",
+                isCaseSensitive: true
+            )
+        )
+        let batches = try splitter.split(
+            """
+            SELECT 1
+            end
+            SELECT 2
+            END
+            """
+        )
+
+        #expect(batches.count == 1)
+        #expect(batches[0].text.contains("SELECT 1"))
+        #expect(batches[0].text.contains("end"))
+    }
 }

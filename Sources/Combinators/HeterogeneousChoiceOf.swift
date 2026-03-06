@@ -83,4 +83,21 @@ extension Parser {
     public func eraseOutput<NewOutput>(_ transform: @escaping (Output) -> NewOutput) -> AnyParser<Input, NewOutput> {
         self.map(transform).eraseToAnyParser()
     }
+
+    /// Maps and erases a parser to a shared output type with a construction-oriented name.
+    /// Prefer this over `eraseOutput` when the transform is building an enum case, node, or model value.
+    @inlinable
+    public func mapTo<NewOutput>(_ transform: @escaping (Output) -> NewOutput) -> AnyParser<Input, NewOutput> {
+        eraseOutput(transform)
+    }
+
+    /// Maps and erases a parser while discarding a leading `Void` output.
+    /// This is especially handy after `Skip { ... }` when you want to pass a constructor directly.
+    @inlinable
+    public func mapTo<Value, NewOutput>(_ transform: @escaping (Value) -> NewOutput) -> AnyParser<Input, NewOutput>
+    where Output == (Void, Value) {
+        eraseOutput { _, value in
+            transform(value)
+        }
+    }
 }
