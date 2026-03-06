@@ -438,7 +438,11 @@ QualifiedIdentifier(
 
 **Styles:**
 - `.standard` — `[a-zA-Z_][a-zA-Z0-9_]*`
-- `.sql` — supports ordinary identifiers plus prefix-aware forms such as `@count`, `@@rowcount`, `#temp`, `##temp`, and `$` in continuing positions
+- `.sql` — comprehensive SQL identifier support including:
+  - Regular identifiers with `$` in continuing positions
+  - Prefix-aware forms: `@variable`, `@@global`, `#temp`, `##temp`
+  - Bracketed identifiers: `[Order Details]`, `[SELECT]` (no escaping)
+  - Quoted identifiers: `"Column Name"`, `"Table""Name"` (doubled-delimiter escape)
 - `.custom(Configuration)` — fully configurable regular and delimited forms
 
 **Related types:**
@@ -684,6 +688,51 @@ HexLiteral()
 **Examples:**
 ```swift
 HexLiteral()   // "0x1a", "0XFF"
+```
+
+---
+
+### `BinaryLiteral`
+
+Parses binary literals with `0b` or `0B` prefix.
+
+**Signature:**
+```swift
+BinaryLiteral()
+```
+
+**Examples:**
+```swift
+BinaryLiteral()   // "0b101" → 5, "0B1101" → 13
+```
+
+---
+
+### `MoneyLiteral`
+
+Parses money literals with configurable currency symbol and decimal handling.
+
+**Signatures:**
+```swift
+MoneyLiteral(
+    currencySymbol: Character = "$",
+    requiresDecimal: Bool = false,
+    decimalPlaces: Int = 2
+)
+```
+
+**Behavior:**
+- Parses a leading currency symbol followed by an optional sign and numeric value
+- Supports both integer and decimal amounts
+- Can be configured to require a decimal point
+- Decimal places parameter is informational (doesn't enforce precision)
+
+**Examples:**
+```swift
+MoneyLiteral()                         // "$123.45" → 123.45, "$100" → 100.0
+MoneyLiteral(currencySymbol: "€")      // "€50.00" → 50.0
+MoneyLiteral(currencySymbol: "$")      // "$-456.78" → -456.78
+MoneyLiteral(requiresDecimal: true)    // "$100" fails; "$100.00" succeeds
 ```
 
 ---
@@ -1840,7 +1889,7 @@ Memoized("num", memoTable: memoTable) {
 |----------|----------|
 | **Entry** | `Pegex`, `ImplicitWhitespace`, `ImplicitWhitespaceBuilder`, `ImplicitWhitespaceSequence`, `PEGExBuilder` |
 | **Whitespace** | `OptionalWhitespace`, `RequiredWhitespace`, `Whitespace`, `SQLComment`, `CommentSyntax`, `WhitespaceConfiguration`, `TokenMode`, `TokenModeKind` |
-| **Matchers** | `Keyword`, `Identifier`, `IdentifierToken`, `QualifiedIdentifier`, `QualifiedIdentifierValue`, `ParsedIdentifier`, `CharParser`, `Char`, `CharIn`, `CharNotIn`, `Anchor`, `IntegerLiteral`, `FloatLiteral`, `HexLiteral`, `StringLiteral` |
+| **Matchers** | `Keyword`, `Identifier`, `IdentifierToken`, `QualifiedIdentifier`, `QualifiedIdentifierValue`, `ParsedIdentifier`, `CharParser`, `Char`, `CharIn`, `CharNotIn`, `Anchor`, `IntegerLiteral`, `FloatLiteral`, `HexLiteral`, `BinaryLiteral`, `MoneyLiteral`, `StringLiteral` |
 | **Quantifiers** | `One`, `ZeroOrMore`, `OneOrMore`, `Optionally`, `Repeat` |
 | **Combinators** | `ChoiceOf`, `HeterogeneousChoiceOf`, `HeterogeneousChoiceBuilder`, `Cut`, `Lookahead`, `NegativeLookahead`, `Sequence` |
 | **Capture** | `Capture`, `TryCapture`, `Reference`, `CaptureAs` |

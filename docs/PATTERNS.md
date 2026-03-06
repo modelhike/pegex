@@ -19,6 +19,7 @@ Opinionated guidance for composing PegexBuilder parsers in readable, maintainabl
 - Use `ImplicitWhitespace { ... }` for token-based languages.
 - Use `Keyword(...)` for case-insensitive language keywords.
 - Use `Identifier(configuration:)` instead of custom ad hoc identifier parsing.
+- Use `Identifier(style: .sql)` for SQL dialects (T-SQL, Sybase ASE) with full support for regular, prefixed (`@`, `@@`, `#`, `##`), bracketed (`[...]`), and quoted (`"..."`) identifiers.
 - Use `StringLiteral(quote: "'", escapeMode: .doubledClosingDelimiter)` for SQL-style strings.
 - Use `QualifiedIdentifier` instead of manually stitching dotted identifiers.
 - Use `PrecedenceGroup` for expressions instead of trying to model native left recursion.
@@ -268,6 +269,22 @@ Use:
 - `delimitedForms` for bracketed or quoted identifiers
 - `QualifiedIdentifier` for multipart names such as `database..object`
 
+### SQL dialect shorthand
+
+For SQL dialects (T-SQL, Sybase ASE), use the `.sql` style preset:
+
+```swift
+let parser = Identifier(style: .sql)
+// Supports all of:
+// - Regular: table_name, col$id
+// - Variables: @counter, @@rowcount
+// - Temp objects: #temp_table, ##global_temp
+// - Bracketed: [Order Details], [SELECT]
+// - Quoted: "Column Name", "Table""Name"
+```
+
+This is equivalent to the full configuration above but more concise and includes bracketed/quoted forms.
+
 ### Keep raw and normalized identifier text when needed
 
 ```swift
@@ -309,6 +326,38 @@ let parser = StringLiteral(quote: "'", escapeMode: .none)
 ```
 
 Use this when the delimiter should close immediately and doubled delimiters are not special.
+
+---
+
+## Numeric Literals
+
+Use built-in parsers for common numeric formats.
+
+### Standard numeric types
+
+```swift
+IntegerLiteral()      // "42", "-17", "+0"
+FloatLiteral()        // "3.14", "-1.5e10", "2e-3"
+HexLiteral()          // "0xFF", "0x1a"
+BinaryLiteral()       // "0b101", "0B1101"
+```
+
+### Money literals
+
+For currency-prefixed values:
+
+```swift
+MoneyLiteral()                        // "$123.45", "$-456.78", "$100"
+MoneyLiteral(currencySymbol: "€")     // "€50.00"
+MoneyLiteral(requiresDecimal: true)   // Enforces decimal point
+```
+
+Use `MoneyLiteral` when:
+- Your language has currency-prefixed numeric syntax
+- You need to distinguish money values from regular numbers at the lexical level
+- You want configurable currency symbols
+
+For languages where currency is just a function or suffix (e.g. `100 USD`), use `IntegerLiteral()` or `FloatLiteral()` instead.
 
 ---
 

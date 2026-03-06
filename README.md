@@ -69,10 +69,10 @@ let (cols, table) = try parser.parse(&input)
 | `Keyword("SELECT")` | Case-insensitive keyword with word boundary |
 | `Keyword("ORDER", "BY")` | Multi-word keyword |
 | `Identifier()` | `[a-zA-Z_][a-zA-Z0-9_]*` |
-| `Identifier(style: .sql)` | Also allows `@`, `#`, `$` |
+| `Identifier(style: .sql)` | SQL identifiers: `@variable`, `@@global`, `#temp`, `##temp`, `[bracketed]`, `"quoted"` |
 | `Char.digit`, `Char.letter`, `Char.word`, `Char.any` | Single-character parsers |
 | `CharIn("a"..."z")`, `CharNotIn("\n")` | Character sets |
-| `IntegerLiteral()`, `FloatLiteral()`, `HexLiteral()` | Numeric literals |
+| `IntegerLiteral()`, `FloatLiteral()`, `HexLiteral()`, `BinaryLiteral()`, `MoneyLiteral()` | Numeric literals |
 | `StringLiteral(quote: "'")` | Quoted strings with configurable escape |
 | `Anchor.startOfInput`, `Anchor.endOfInput` | Position assertions |
 

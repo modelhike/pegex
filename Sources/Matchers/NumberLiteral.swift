@@ -108,3 +108,102 @@ where Input.SubSequence == Input, Input.Element == Character {
         return result
     }
 }
+
+/// Parses binary literals (0b or 0B prefix).
+public struct BinaryLiteral<Input: Collection>: Parser
+where Input.SubSequence == Input, Input.Element == Character {
+    @inlinable
+    public init() {}
+
+    @inlinable
+    public func parse(_ input: inout Input) throws -> Int {
+        guard input.count >= 3 else { throw PEGExParseError("expected binary literal") }
+        let prefix = String(input.prefix(2))
+        guard prefix.lowercased() == "0b" else { throw PEGExParseError("expected 0b prefix") }
+        input = input.dropFirst(2)
+        var result = 0
+        var found = false
+        while let c = input.first, c == "0" || c == "1" {
+            found = true
+            result = result * 2 + (c == "1" ? 1 : 0)
+            input = input.dropFirst()
+        }
+        guard found else { throw PEGExParseError("expected binary digits") }
+        return result
+    }
+}
+
+/// Parses money literals with configurable currency symbol and decimal places.
+public struct MoneyLiteral<Input: Collection>: Parser
+where Input.SubSequence == Input, Input.Element == Character {
+    @usableFromInline
+    let currencySymbol: Character
+    @usableFromInline
+    let requiresDecimal: Bool
+    @usableFromInline
+    let decimalPlaces: Int
+
+    /// Creates a money literal parser.
+    /// - Parameters:
+    ///   - currencySymbol: Leading currency symbol (e.g. `$`, `€`, `£`)
+    ///   - requiresDecimal: Whether a decimal point is required
+    ///   - decimalPlaces: Number of decimal places (defaults to 2)
+    @inlinable
+    public init(currencySymbol: Character = "$", requiresDecimal: Bool = false, decimalPlaces: Int = 2) {
+        self.currencySymbol = currencySymbol
+        self.requiresDecimal = requiresDecimal
+        self.decimalPlaces = decimalPlaces
+    }
+
+    @inlinable
+    public func parse(_ input: inout Input) throws -> Double {
+        guard input.first == currencySymbol else {
+            throw PEGExParseError("expected currency symbol '\(currencySymbol)'")
+        }
+        input = input.dropFirst()
+        
+        var copy = input
+        var s = ""
+        var negative = false
+        
+        if let first = copy.first, first == "-" {
+            negative = true
+            copy = copy.dropFirst()
+        } else if let first = copy.first, first == "+" {
+            copy = copy.dropFirst()
+        }
+        
+        var foundDigits = false
+        while let c = copy.first, c.isNumber {
+            foundDigits = true
+            s.append(c)
+            copy = copy.dropFirst()
+        }
+        
+        var hasDecimal = false
+        if let c = copy.first, c == "." {
+            hasDecimal = true
+            s.append(c)
+            copy = copy.dropFirst()
+            while let c = copy.first, c.isNumber {
+                s.append(c)
+                copy = copy.dropFirst()
+            }
+        }
+        
+        guard foundDigits || hasDecimal else {
+            throw PEGExParseError("expected numeric value after currency symbol")
+        }
+        
+        if requiresDecimal && !hasDecimal {
+            throw PEGExParseError("money literal requires decimal point")
+        }
+        
+        guard let value = Double(s) else {
+            throw PEGExParseError("invalid money value")
+        }
+        
+        input = copy
+        return negative ? -value : value
+    }
+}

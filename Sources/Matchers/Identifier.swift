@@ -148,6 +148,10 @@ where Input.SubSequence == Input, Input.Element == Character {
                         prefix: "#",
                         body: .init(additionalContinuingCharacters: Set(["@", "#", "$"]))
                     ),
+                ],
+                delimitedForms: [
+                    .init(opening: "[", closing: "]", escapeStrategy: .none),
+                    .init(opening: "\"", closing: "\"", escapeStrategy: .doubledClosingDelimiter)
                 ]
             )
         }
