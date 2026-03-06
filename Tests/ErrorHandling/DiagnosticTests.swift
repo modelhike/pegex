@@ -17,8 +17,27 @@ struct DiagnosticTests {
     }
 
     @Test func diagnosticFormatted() {
-        let diag = PEGExDiagnostic(from: PEGExError.expected("x", at: "abc"[...], underlying: PEGExParseError("fail")))
+        let diag = PEGExDiagnostic(from: PEGExError.expected("x", at: PEGExPosition("abc"[...]), underlying: PEGExParseError("fail")))
         let formatted = diag.formatted
         #expect(formatted.contains("expected x"))
+    }
+
+    @Test func parseWithLocationReportsOffset() {
+        let parser = Pegex { "SELECT" }
+        #expect(throws: PEGExLocatedError.self) {
+            _ = try parser.parseWithLocation("SELE")
+        }
+    }
+
+    @Test func parseWithLocationPreservesExpectedLabel() {
+        let parser = Expected("keyword") { "SELECT" }
+        do {
+            _ = try parser.parseWithLocation("SELE")
+            Issue.record("Expected parseWithLocation to throw")
+        } catch let error as PEGExLocatedError {
+            #expect(error.expected == "keyword")
+        } catch {
+            Issue.record("Unexpected error type: \(error)")
+        }
     }
 }

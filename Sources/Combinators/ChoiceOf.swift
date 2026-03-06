@@ -3,27 +3,48 @@
 import Parsing
 
 /// A parser that tries each alternative in order until one succeeds.
-/// Wraps swift-parsing's OneOf. When an alternative throws CutError, re-throws immediately.
-public struct ChoiceOf<Input, Output, Parsers: Parser>: Parser
-where Parsers.Input == Input, Parsers.Output == Output {
+public struct ChoiceOf<Input, Output>: Parser {
     @usableFromInline
-    let underlying: Parsing.OneOf<Input, Output, Parsers>
+    let alternatives: [AnyParser<Input, Output>]
+
+    @inlinable
+    public init(_ alternatives: [AnyParser<Input, Output>]) {
+        self.alternatives = alternatives
+    }
 
     @inlinable
     public init(
         input inputType: Input.Type = Input.self,
         output outputType: Output.Type = Output.self,
-        @OneOfBuilder<Input, Output> _ build: () -> Parsers
+        @HeterogeneousChoiceBuilder<Input, Output> _ build: () -> [AnyParser<Input, Output>]
     ) {
-        self.underlying = Parsing.OneOf(input: inputType, output: outputType, build)
+        self.alternatives = build()
     }
 
     @inlinable
     public func parse(_ input: inout Input) throws -> Output {
-        do {
-            return try underlying.parse(&input)
-        } catch let cutError as CutError {
-            throw cutError
+        var lastError: Error?
+
+        for alternative in alternatives {
+            let cutState = CutContext.push()
+            var copy = input
+            do {
+                let output = try alternative.parse(&copy)
+                CutContext.pop()
+                input = copy
+                return output
+            } catch let cutError as CutError {
+                CutContext.pop()
+                throw cutError
+            } catch {
+                CutContext.pop()
+                if cutState.didCommit {
+                    throw CutError(underlying: error, position: cutState.position ?? PEGExPosition(copy))
+                }
+                lastError = error
+            }
         }
+
+        throw lastError ?? PEGExParseError("expected one of \(alternatives.count) alternatives")
     }
 }

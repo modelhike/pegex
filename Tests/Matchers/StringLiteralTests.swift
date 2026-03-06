@@ -33,4 +33,25 @@ struct StringLiteralTests {
         var input3 = "`backtick`"[...]
         #expect((try? parser.parse(&input3)) == "backtick")
     }
+
+    @Test func sqlStyleDoubledQuoteEscape() throws {
+        let parser = StringLiteral(quote: "'", escapeMode: .doubledClosingDelimiter)
+        var input = "'O''Brien'"[...]
+        let result = try parser.parse(&input)
+        #expect(result == "O'Brien")
+    }
+
+    @Test func multilineStringLiteralPreservesNewlines() throws {
+        let parser = StringLiteral(quote: "'", escapeMode: .doubledClosingDelimiter)
+        var input = "'line 1\nline 2'"[...]
+        let result = try parser.parse(&input)
+        #expect(result == "line 1\nline 2")
+    }
+
+    @Test func unclosedStringUsesLocationAwareParse() {
+        let parser = StringLiteral(quote: "'", escapeMode: .doubledClosingDelimiter)
+        #expect(throws: PEGExLocatedError.self) {
+            _ = try parser.parseWithLocation("'abc")
+        }
+    }
 }

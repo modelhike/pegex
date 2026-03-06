@@ -44,4 +44,23 @@ struct ChoiceOfTests {
         try parser.parse(&input)
         #expect(input == " x")
     }
+
+    @Test func cutPreventsBacktrackingToLaterAlternatives() {
+        let parser = ChoiceOf<Substring, String> {
+            Pegex({ _ in "abc" }) {
+                "ab"
+                Cut()
+                "c"
+            }
+            Pegex({ _ in "abd" }) {
+                "ab"
+                "d"
+            }
+        }
+
+        var input = "abd"[...]
+        #expect(throws: CutError.self) {
+            _ = try parser.parse(&input)
+        }
+    }
 }
