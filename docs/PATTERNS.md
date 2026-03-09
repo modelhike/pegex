@@ -19,7 +19,7 @@ Opinionated guidance for composing PegexBuilder parsers in readable, maintainabl
 - Use `ImplicitWhitespace { ... }` for token-based languages.
 - Use `Keyword(...)` for case-insensitive language keywords.
 - Use `Identifier(configuration:)` instead of custom ad hoc identifier parsing.
-- Use `Identifier(style: .sql)` for SQL dialects (T-SQL, Sybase ASE) with full support for regular, prefixed (`@`, `@@`, `#`, `##`), bracketed (`[...]`), and quoted (`"..."`) identifiers.
+- Use `Identifier(style: .sql)` for SQL dialects with extended identifier support, including regular, prefixed (`@`, `@@`, `#`, `##`), bracketed (`[...]`), and quoted (`"..."`) identifiers.
 - Use `StringLiteral(quote: "'", escapeMode: .doubledClosingDelimiter)` for SQL-style strings.
 - Use `QualifiedIdentifier` instead of manually stitching dotted identifiers.
 - Use `PrecedenceGroup` for expressions instead of trying to model native left recursion.
@@ -271,7 +271,7 @@ Use:
 
 ### SQL dialect shorthand
 
-For SQL dialects (T-SQL, Sybase ASE), use the `.sql` style preset:
+For SQL dialects with extended identifier syntax, use the `.sql` style preset:
 
 ```swift
 let parser = Identifier(style: .sql)
