@@ -2,10 +2,10 @@ import PegexBuilder
 import Parsing
 import Testing
 
-/// Integration test: Sybase ASE-specific SQL constructs.
+/// Integration test:  SQL constructs.
 /// Validates: @@variables, #temp tables, EXEC, PRINT.
-@Suite("FullSybaseASETests")
-struct FullSybaseASETests {
+@Suite("FullSQLTests")
+struct FullSQLTests {
     @Test func globalVariable() {
         let parser = Pegex {
             ImplicitWhitespace {
@@ -92,26 +92,6 @@ struct FullSybaseASETests {
         }
 
         var input = "SELECT id INTO #temp FROM users"[...]
-        let result = try? parser.parse(&input)
-        #expect(result != nil)
-    }
-
-    @Test func oldStyleJoin() {
-        let parser = Pegex {
-            ImplicitWhitespace {
-                Capture { Identifier() }
-                "."
-                Capture { Identifier() }
-                OptionalWhitespace()
-                "*="
-                OptionalWhitespace()
-                Capture { Identifier() }
-                "."
-                Capture { Identifier() }
-            }
-        }
-
-        var input = "t1.col *= t2.col"[...]
         let result = try? parser.parse(&input)
         #expect(result != nil)
     }

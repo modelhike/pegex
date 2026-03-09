@@ -51,7 +51,7 @@ Tests live under `Tests/` and are similarly grouped by feature area.
 ## Architectural Principles
 
 - Keep the library generic.
-  - Do not hardcode language-specific behavior for Sybase or any other downstream consumer.
+  - Do not hardcode language-specific behavior for any downstream consumer.
   - Add reusable primitives/configuration points instead.
 - Favor composable parser building blocks over special-case APIs.
 - Prefer small API surface additions unless a larger abstraction clearly improves usability.
