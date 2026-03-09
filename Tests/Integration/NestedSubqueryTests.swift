@@ -1,5 +1,4 @@
 import PegexBuilder
-import Parsing
 import Testing
 
 /// Integration test: nested SELECT subqueries (e.g. WHERE x IN (SELECT ...)).

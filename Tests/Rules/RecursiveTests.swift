@@ -1,16 +1,15 @@
 import PegexBuilder
-import Parsing
 import Testing
 
 @Suite("RecursiveTests")
 struct RecursiveTests {
-    private var numberParser: Parsing.AnyParser<Substring, Int> {
+    private var numberParser: AnyParser<Substring, Int> {
         Prefix { $0.isNumber }.map { Int(String($0))! }.eraseToAnyParser()
     }
 
     @Test func recursiveNestedParentheses() {
         let expr = Recursive<Substring, Int> { ref in
-            Parsing.AnyParser { (input: inout Substring) in
+            AnyParser { (input: inout Substring) in
                 var copy = input
                 do {
                     _ = try "(".parse(&copy)
@@ -32,7 +31,7 @@ struct RecursiveTests {
 
     @Test func recursiveSingleNumber() {
         let expr = Recursive<Substring, Int> { ref in
-            Parsing.AnyParser { (input: inout Substring) in
+            AnyParser { (input: inout Substring) in
                 var copy = input
                 do {
                     _ = try "(".parse(&copy)
@@ -54,7 +53,7 @@ struct RecursiveTests {
 
     @Test func recursiveRightAssociative() {
         let expr = Recursive<Substring, Int> { ref in
-            Parsing.AnyParser { (input: inout Substring) in
+            AnyParser { (input: inout Substring) in
                 var copy = input
                 let n = try self.numberParser.parse(&copy)
                 do {

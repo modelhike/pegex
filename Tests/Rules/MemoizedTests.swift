@@ -1,5 +1,4 @@
 import PegexBuilder
-import Parsing
 import Testing
 
 @Suite("MemoizedTests")
@@ -20,7 +19,7 @@ struct MemoizedTests {
         let numberParser = Prefix { $0.isNumber }.map { Int(String($0))! }
         let expr = Recursive<Substring, Int> { ref in
             let memoized = Memoized("expr", memoTable: memoTable) {
-                Parsing.AnyParser { (input: inout Substring) in
+                AnyParser { (input: inout Substring) in
                     var copy = input
                     do {
                         _ = try "(".parse(&copy)

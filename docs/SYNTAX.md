@@ -835,11 +835,11 @@ OneOrMore { Identifier() }   // non-empty list
 
 ### `Optionally`
 
-Zero or one occurrence. Returns `Output?`. Re-exports `Parsing.Optionally`.
+Zero or one occurrence. Returns `Output?`. PegexBuilder provides its own `Optionally` with `@OptionallyBuilder` that inserts implicit whitespace between child parsers and skips `Void` outputs (matching `@ParserBuilder` behavior).
 
 **Signature:**
 ```swift
-Optionally { @ParserBuilder content }
+Optionally { @OptionallyBuilder content }
 ```
 
 **Examples:**
@@ -1852,18 +1852,23 @@ Enum with typealiases for `Substring`-specialized parsers (e.g. `KeywordSubstrin
 
 ## 11. swift-parsing Companion Types
 
-PegexBuilder is built on [swift-parsing](https://github.com/pointfreeco/swift-parsing). These types are re-exported or used alongside PegexBuilder parsers. Import `Parsing` (or use `@_exported import Parsing` from PegexBuilder).
+PegexBuilder is built on [swift-parsing](https://github.com/pointfreeco/swift-parsing). The following types are re-exported by PegexBuilder so consumers **do not need to import Parsing directly**:
 
 | Type | Description |
 |------|--------------|
+| `Parser` | Core protocol (re-exported via `@_exported import protocol`) |
+| `AnyParser` | Type-erased parser. Use `parser.eraseToAnyParser()` for `Recursive` and `PrecedenceGroup` |
+| `ParserBuilder` | Result builder for sequences (via `PEGExBuilder` alias) |
 | `Prefix` | Consumes characters while predicate holds. `Prefix { $0.isNumber }`, `Prefix(1...) { ... }` |
 | `Skip` | Parses and discards output. `Skip { " + " }` for operator in PrecedenceGroup |
-| `AnyParser` | Type-erased parser. Use `parser.eraseToAnyParser()` for `Recursive` and `PrecedenceGroup` |
+
+Types that remain in `Parsing` and are **not** re-exported (use sparingly or wrap):
+
+| Type | Description |
+|------|--------------|
 | `Int.parser()` | Built-in integer parser. Use `.pullback(\.utf8)` for `Substring` |
-| `OneOfBuilder` | Result builder for `ChoiceOf` (alternatives must have same `Output` type) |
-| `AnyParser` + `mapTo` / `eraseOutput` | Useful for `HeterogeneousChoiceOf`; prefer `mapTo` for readable enum/node construction and keep `eraseOutput` for low-level erasure |
-| `ParserBuilder` | Result builder for sequences (via `PEGExBuilder` alias) |
 | `Parse` | Underlying type for `Pegex`; rarely used directly |
+| `OneOfBuilder` | Result builder for `ChoiceOf` (alternatives must have same `Output` type) |
 
 **Examples:**
 ```swift

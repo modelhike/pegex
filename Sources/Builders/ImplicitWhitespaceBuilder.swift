@@ -78,3 +78,50 @@ where A.Input == B.Input, A.Input: Collection, A.Input.SubSequence == A.Input, A
         return (o1, o2)
     }
 }
+
+/// Sequence that skips the first parser's Void output (whitespace between).
+public struct ImplicitWhitespaceSkipFirst<A: Parser, B: Parser>: Parser
+where A.Input == B.Input, A.Output == Void,
+      A.Input: Collection, A.Input.SubSequence == A.Input, A.Input.Element == Character {
+    @usableFromInline let a: A
+    @usableFromInline let b: B
+    @usableFromInline let configuration: WhitespaceConfiguration
+
+    @inlinable
+    public init(_ a: A, _ b: B, configuration: WhitespaceConfiguration = .standard) {
+        self.a = a
+        self.b = b
+        self.configuration = configuration
+    }
+
+    @inlinable
+    public func parse(_ input: inout A.Input) throws -> B.Output {
+        try a.parse(&input)
+        _ = try Whitespace<A.Input>(configuration: configuration).parse(&input)
+        return try b.parse(&input)
+    }
+}
+
+/// Sequence that skips the second parser's Void output (whitespace between).
+public struct ImplicitWhitespaceSkipSecond<A: Parser, B: Parser>: Parser
+where A.Input == B.Input, B.Output == Void,
+      A.Input: Collection, A.Input.SubSequence == A.Input, A.Input.Element == Character {
+    @usableFromInline let a: A
+    @usableFromInline let b: B
+    @usableFromInline let configuration: WhitespaceConfiguration
+
+    @inlinable
+    public init(_ a: A, _ b: B, configuration: WhitespaceConfiguration = .standard) {
+        self.a = a
+        self.b = b
+        self.configuration = configuration
+    }
+
+    @inlinable
+    public func parse(_ input: inout A.Input) throws -> A.Output {
+        let o1 = try a.parse(&input)
+        _ = try Whitespace<A.Input>(configuration: configuration).parse(&input)
+        try b.parse(&input)
+        return o1
+    }
+}

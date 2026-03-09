@@ -22,11 +22,11 @@ where Upstream.Input == Input {
         var copy = input
         do {
             _ = try upstream.parse(&copy)
-            // Inner parser succeeded - we must fail
-            throw PEGExError.negativeLookaheadFailed(at: PEGExPosition(input))
         } catch {
-            // Inner parser failed - that means we succeed (consume nothing)
+            // Inner parser failed — lookahead succeeds (consume nothing)
             return
         }
+        // Inner parser succeeded — lookahead must fail
+        throw PEGExError.negativeLookaheadFailed(at: PEGExPosition(input))
     }
 }
