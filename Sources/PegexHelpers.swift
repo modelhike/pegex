@@ -2,7 +2,14 @@
 //
 // Export all public types. Individual files are in subdirectories.
 
-@_exported import Parsing
+import Parsing
+
+// Re-export Parsing types that consumers need, so they never import Parsing directly
+public typealias AnyParser = Parsing.AnyParser
+public typealias ParserBuilder = Parsing.ParserBuilder
+public typealias Prefix = Parsing.Prefix
+public typealias Skip = Parsing.Skip
+@_exported import protocol Parsing.Parser
 
 /// Substring typealiases for tests; use `PegexSubstringTypes.Keyword` to avoid `Pegex.X` module/struct clash.
 /// Uses distinct names (KeywordSubstring etc.) to avoid shadowing module types.

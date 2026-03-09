@@ -1,5 +1,4 @@
 import PegexBuilder
-import Parsing
 import Testing
 
 /// Integration test: basic SELECT parsing using Pegex.

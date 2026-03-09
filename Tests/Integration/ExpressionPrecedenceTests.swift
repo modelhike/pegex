@@ -1,5 +1,4 @@
 import PegexBuilder
-import Parsing
 import Testing
 
 /// Integration test: SQL expression precedence (AND, OR, IN, comparisons).
@@ -65,7 +64,7 @@ struct ExpressionPrecedenceTests {
     @Test func parenthesizedExpression() {
         let number = FloatLiteral().map { SQLExpr.number($0) }
         let expr = Recursive<Substring, SQLExpr> { ref in
-            let atom = Parsing.AnyParser<Substring, SQLExpr> { input in
+            let atom = AnyParser<Substring, SQLExpr> { input in
                 var copy = input
                 do {
                     _ = try "(".parse(&copy)

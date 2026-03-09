@@ -1,11 +1,10 @@
 import PegexBuilder
-import Parsing
 
 // MARK: - Substring typealiases for cleaner builder syntax
 // Use PegexSubstringTypes to avoid repeating <Substring>.
 
 typealias Keyword = PegexSubstringTypes.KeywordSubstring
-typealias Prefix = Parsing.Prefix<Substring>
+typealias Prefix = PegexBuilder.Prefix<Substring>
 typealias Identifier = PegexSubstringTypes.IdentifierSubstring
 typealias IntegerLiteral = PegexSubstringTypes.IntegerLiteralSubstring
 typealias FloatLiteral = PegexSubstringTypes.FloatLiteralSubstring

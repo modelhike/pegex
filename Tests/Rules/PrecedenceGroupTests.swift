@@ -1,5 +1,4 @@
 import PegexBuilder
-import Parsing
 import Testing
 
 @Suite("PrecedenceGroupTests")
@@ -46,7 +45,7 @@ struct PrecedenceGroupTests {
     @Test func nestedParentheses() {
         let number = Prefix { $0.isNumber }.map { Int(String($0))! }
         let expr = Recursive<Substring, Int> { ref in
-            let atom = Parsing.AnyParser<Substring, Int> { (input: inout Substring) in
+            let atom = AnyParser<Substring, Int> { (input: inout Substring) in
                 var copy = input
                 do {
                     _ = try "(".parse(&copy)
