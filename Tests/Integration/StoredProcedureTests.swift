@@ -64,7 +64,6 @@ struct StoredProcedureTests {
         let result = try? parser.parse(&input)
         #expect(result != nil)
         guard let r = result else { return }
-        let ((_, vars), _) = r
-        #expect(vars == ["@a", "@b", "@c"])
+        #expect(r == ["@a", "@b", "@c"])
     }
 }

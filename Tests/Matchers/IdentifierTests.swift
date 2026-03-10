@@ -152,4 +152,41 @@ struct IdentifierTests {
         let result = try parser.parse(&input)
         #expect(result == "Order Details With Spaces")
     }
+
+    @Test func sqlStyleHashTempTable() throws {
+        let parser = Identifier(style: .sql)
+        var input = "#temp_table"[...]
+        #expect(try parser.parse(&input) == "#temp_table")
+    }
+
+    @Test func sqlStyleDoubleHashGlobalTempTable() throws {
+        let parser = Identifier(style: .sql)
+        var input = "##global_temp"[...]
+        #expect(try parser.parse(&input) == "##global_temp")
+    }
+
+    @Test func sqlStyleBracketedIdentifierWithReservedWord() throws {
+        let parser = Identifier(style: .sql)
+        var input = "[CREATE]"[...]
+        #expect(try parser.parse(&input) == "CREATE")
+    }
+
+    @Test func sqlStyleQualifiedWithBracketedParts() throws {
+        let parser = QualifiedIdentifier<Substring>(
+            component: IdentifierToken(style: .sql),
+            allowsOmittedComponents: true,
+            maxParts: 4
+        )
+        var input = "[MyDB]..[Order Details]"[...]
+        let result = try parser.parse(&input)
+        #expect(result.values[0] == "MyDB")
+        #expect(result.values[1] == nil)
+        #expect(result.values[2] == "Order Details")
+    }
+
+    @Test func sqlStyleGlobalVariableAtAt() throws {
+        let parser = Identifier(style: .sql)
+        var input = "@@version"[...]
+        #expect(try parser.parse(&input) == "@@version")
+    }
 }

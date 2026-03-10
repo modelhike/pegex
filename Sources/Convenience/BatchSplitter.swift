@@ -2,11 +2,26 @@
 public struct ScriptBatch: Equatable, Sendable {
     public let text: String
     public let repeatCount: Int?
+    /// Character offset of this batch's first character within the original source string.
+    public let startOffset: Int
+    /// 1-based line number where this batch begins in the original source string.
+    public let startLine: Int
+    /// 1-based column number where this batch begins in the original source string.
+    public let startColumn: Int
 
     @inlinable
-    public init(text: String, repeatCount: Int? = nil) {
+    public init(
+        text: String,
+        repeatCount: Int? = nil,
+        startOffset: Int = 0,
+        startLine: Int = 1,
+        startColumn: Int = 1
+    ) {
         self.text = text
         self.repeatCount = repeatCount
+        self.startOffset = startOffset
+        self.startLine = startLine
+        self.startColumn = startColumn
     }
 }
 
@@ -75,7 +90,11 @@ public struct BatchSplitter: Sendable {
     public func split(_ source: String) throws -> [ScriptBatch] {
         var batches: [ScriptBatch] = []
         var batchStart = source.startIndex
+        var batchStartOffset = 0
+        var batchStartLine = 1
         var lineStart = source.startIndex
+        var currentOffset = 0
+        var currentLine = 1
         var state: ParserState = .neutral
 
         while lineStart < source.endIndex {
@@ -84,15 +103,29 @@ public struct BatchSplitter: Sendable {
             let inspection = inspect(line: line, state: state)
             state = inspection.endingState
 
+            let afterLine = indexAfterLineEnding(in: source, from: lineEnd)
+            let lineEndLength = lineEnd < source.endIndex ? lineEndingLength(in: source, at: lineEnd) : 0
+            let nextOffset = currentOffset + line.count + lineEndLength
+
             if state == .neutral, let directive = parseDirective(from: inspection.significantContent) {
                 let batchText = String(source[batchStart..<lineStart])
                 if !batchText.pegexTrimmed().isEmpty {
-                    batches.append(ScriptBatch(text: batchText, repeatCount: directive.repeatCount))
+                    batches.append(ScriptBatch(
+                        text: batchText,
+                        repeatCount: directive.repeatCount,
+                        startOffset: batchStartOffset,
+                        startLine: batchStartLine,
+                        startColumn: 1
+                    ))
                 }
-                batchStart = indexAfterLineEnding(in: source, from: lineEnd)
+                batchStart = afterLine
+                batchStartOffset = nextOffset
+                batchStartLine = currentLine + 1
             }
 
-            lineStart = indexAfterLineEnding(in: source, from: lineEnd)
+            currentOffset = nextOffset
+            currentLine += 1
+            lineStart = afterLine
         }
 
         if case .blockComment = state {
@@ -101,7 +134,13 @@ public struct BatchSplitter: Sendable {
 
         let trailingBatch = String(source[batchStart..<source.endIndex])
         if !trailingBatch.pegexTrimmed().isEmpty {
-            batches.append(ScriptBatch(text: trailingBatch, repeatCount: nil))
+            batches.append(ScriptBatch(
+                text: trailingBatch,
+                repeatCount: nil,
+                startOffset: batchStartOffset,
+                startLine: batchStartLine,
+                startColumn: 1
+            ))
         }
         return batches
     }
@@ -216,6 +255,15 @@ public struct BatchSplitter: Sendable {
             return nil
         }
         return DirectiveMatch(repeatCount: count)
+    }
+
+    func lineEndingLength(in source: String, at index: String.Index) -> Int {
+        guard index < source.endIndex else { return 0 }
+        if source[index] == "\r" {
+            let next = source.index(after: index)
+            return (next < source.endIndex && source[next] == "\n") ? 2 : 1
+        }
+        return 1
     }
 
     func indexAfterLineEnding(in source: String, from index: String.Index) -> String.Index {

@@ -56,7 +56,7 @@ struct FullSQLTests {
         let result = try? parser.parse(&input)
         #expect(result != nil)
         if let r = result {
-            let ((_, proc), params) = r
+            let (proc, params) = r
             #expect(proc == "my_proc")
             #expect(params != nil)
             if let p = params {

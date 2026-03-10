@@ -74,4 +74,29 @@ struct StringLiteralTests {
             _ = try parser.parseWithLocation("'abc")
         }
     }
+
+    // Sybase-style '' escape (doubled single-quote)
+    @Test func sybaseDoubledQuoteAtStart() throws {
+        let parser = StringLiteral(quote: "'", escapeMode: .doubledClosingDelimiter)
+        var input = "'''hello'"[...]
+        #expect(try parser.parse(&input) == "'hello")
+    }
+
+    @Test func sybaseDoubledQuoteAtEnd() throws {
+        let parser = StringLiteral(quote: "'", escapeMode: .doubledClosingDelimiter)
+        var input = "'hello'''"[...]
+        #expect(try parser.parse(&input) == "hello'")
+    }
+
+    @Test func sybaseMultipleDoubledQuotes() throws {
+        let parser = StringLiteral(quote: "'", escapeMode: .doubledClosingDelimiter)
+        var input = "'it''s a ''test'''"[...]
+        #expect(try parser.parse(&input) == "it's a 'test'")
+    }
+
+    @Test func sybaseEmptyString() throws {
+        let parser = StringLiteral(quote: "'", escapeMode: .doubledClosingDelimiter)
+        var input = "''"[...]
+        #expect(try parser.parse(&input) == "")
+    }
 }

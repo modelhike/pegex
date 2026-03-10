@@ -89,4 +89,46 @@ struct ImplicitWhitespaceTests {
         try Whitespace(configuration: .characters(["_"], commentSyntax: .init())).parse(&input)
         #expect(input == "value")
     }
+
+    // SQL comment handling in ImplicitWhitespace (TASKS.md verification)
+    @Test func sqlLineCommentBetweenKeywords() throws {
+        let parser = ImplicitWhitespace(commentSyntax: .sql) {
+            Keyword("SELECT")
+            Keyword("FROM")
+        }
+        var input = "SELECT -- pick columns\nFROM tail"[...]
+        _ = try parser.parse(&input)
+        #expect(input == " tail")
+    }
+
+    @Test func sqlBlockCommentBetweenKeywords() throws {
+        let parser = ImplicitWhitespace(commentSyntax: .sql) {
+            Keyword("CREATE")
+            Keyword("TABLE")
+        }
+        var input = "CREATE /* this creates a table */ TABLE tail"[...]
+        _ = try parser.parse(&input)
+        #expect(input == " tail")
+    }
+
+    @Test func sqlNestedBlockCommentBetweenKeywords() throws {
+        let parser = ImplicitWhitespace(commentSyntax: .sql) {
+            Keyword("SELECT")
+            Keyword("FROM")
+        }
+        var input = "SELECT /* outer /* inner */ still outer */ FROM tail"[...]
+        _ = try parser.parse(&input)
+        #expect(input == " tail")
+    }
+
+    @Test func sqlMixedCommentsAndWhitespaceBetweenTokens() throws {
+        let parser = ImplicitWhitespace(commentSyntax: .sql) {
+            Keyword("INSERT")
+            Keyword("INTO")
+            Keyword("VALUES")
+        }
+        var input = "INSERT -- comment\n  INTO /* block */ VALUES tail"[...]
+        _ = try parser.parse(&input)
+        #expect(input == " tail")
+    }
 }
