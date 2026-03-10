@@ -93,10 +93,12 @@ public struct PEGExDiagnostic {
             offset += 1
             i = source.index(after: i)
         }
+        // Capture up to 20 chars before and 40 after the error position for context.
         let contextStart = source.index(index, offsetBy: -20, limitedBy: source.startIndex) ?? source.startIndex
         let contextEnd = source.index(index, offsetBy: 40, limitedBy: source.endIndex) ?? source.endIndex
         let snippet = String(source[contextStart..<contextEnd])
             .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
         return (line, column, offset, snippet)
     }
 
@@ -110,7 +112,9 @@ public struct PEGExDiagnostic {
         }
         if let snip = snippet, !snip.isEmpty {
             out += "\n  \(snip)"
-            out += "\n  \(String(repeating: " ", count: min(2, snip.count)))^"
+            // The snippet starts up to 20 chars before the error position; place ^ accordingly.
+            let contextLeadLength = min(20, snip.count)
+            out += "\n  \(String(repeating: " ", count: contextLeadLength))^"
         }
         return out
     }

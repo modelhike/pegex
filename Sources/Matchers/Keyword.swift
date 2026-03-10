@@ -14,9 +14,31 @@ where Input.SubSequence == Input, Input.Element == Character {
         self.words = words
     }
 
-    @usableFromInline
-    init(words: [String]) {
+    /// Initialises from an array of words. Useful when building keywords
+    /// programmatically from a `[String]` variable.
+    @inlinable
+    public init(words: [String]) {
         self.words = words
+    }
+
+    /// Returns a parser that matches any one of the given keywords (OR logic).
+    ///
+    /// ```swift
+    /// Keyword<Substring>.anyOf("PROC", "PROCEDURE")  // matches either
+    /// ```
+    @inlinable
+    public static func anyOf(_ keywords: String...) -> HeterogeneousChoiceOf<Input, Void> {
+        anyOf(keywords)
+    }
+
+    /// Returns a parser that matches any one of the keywords in the given array (OR logic).
+    @inlinable
+    public static func anyOf(_ keywords: [String]) -> HeterogeneousChoiceOf<Input, Void> {
+        HeterogeneousChoiceOf {
+            for kw in keywords {
+                Keyword<Input>(words: [kw])
+            }
+        }
     }
 
     @inlinable

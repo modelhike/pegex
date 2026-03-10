@@ -17,8 +17,7 @@ struct SimpleSelectTests {
         var input = "SELECT a,b FROM t"[...]
         let result = try? parser.parse(&input)
         #expect(result != nil)
-        let (inner, table) = result!
-        let ((_, cols), _) = inner
+        let (cols, table) = result!
         #expect(cols == ["a", "b"])
         #expect(table == "t")
     }
@@ -44,7 +43,7 @@ struct SimpleSelectTests {
         let result = try? parser.parse(&input)
         #expect(result != nil)
         let (outer, whereClause) = result!
-        let (((_, col), _), table) = outer
+        let (col, table) = outer
         #expect(col == "a")
         #expect(table == "t")
         #expect(whereClause != nil)
@@ -70,8 +69,7 @@ struct SimpleSelectTests {
         var input = "SELECT * FROM users"[...]
         let result = try? parser.parse(&input)
         #expect(result != nil)
-        let (inner, table) = result!
-        let ((_, cols), _) = inner
+        let (cols, table) = result!
         #expect(cols == ["*"])
         #expect(table == "users")
     }

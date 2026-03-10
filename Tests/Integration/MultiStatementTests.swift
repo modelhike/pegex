@@ -16,9 +16,9 @@ struct MultiStatementTests {
         let result = try? parser.parse(&input)
         #expect(result != nil)
         #expect(result!.count == 3)
-        #expect(result![0].0.1 == "@a")
-        #expect(result![1].0.1 == "@b")
-        #expect(result![2].0.1 == "@c")
+        #expect(result![0] == "@a")
+        #expect(result![1] == "@b")
+        #expect(result![2] == "@c")
     }
 
     @Test func bracketedColumnName() {

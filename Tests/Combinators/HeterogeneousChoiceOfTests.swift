@@ -29,8 +29,7 @@ struct HeterogeneousChoiceOfTests {
                 Capture { Identifier() }
             }
         }
-        .eraseOutput { output in
-            let (_, column) = output
+        .eraseOutput { column in
             return SelectNode(column: column) as any StatementNode
         }
 
@@ -40,8 +39,7 @@ struct HeterogeneousChoiceOfTests {
                 Capture { Identifier() }
             }
         }
-        .eraseOutput { output in
-            let (_, table) = output
+        .eraseOutput { table in
             return InsertNode(table: table) as any StatementNode
         }
 
